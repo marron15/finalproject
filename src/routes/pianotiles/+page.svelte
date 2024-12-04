@@ -27,14 +27,16 @@
     let lastTimestamp = 0;
     let audio: HTMLAudioElement;
     let startTime = 0;
+    let targetScore = 50; // Score needed to win the stage
+    let stageCompleted = false;
 
     // Define rhythm patterns (in milliseconds)
     const rhythmPatterns: Record<number, number[]> = {
         1: [
-            0, 500, 1000, 1500,  // First measure
-            2000, 2500, 3000, 3500,  // Second measure
-            4000, 4500, 5000, 5500,  // Third measure
-            6000, 6500, 7000, 7500   // Fourth measure
+            0, 800, 1600, 2400,    // First measure
+            3200, 4000, 4800, 5600, // Second measure
+            6400, 7200, 8000, 8800, // Third measure
+            9600, 10400, 11200, 12000 // Fourth measure
         ]
     };
 
@@ -90,17 +92,17 @@
         if (selectedStage?.id && rhythmPatterns[selectedStage.id]) {
             const pattern = rhythmPatterns[selectedStage.id];
             const currentBeat = pattern.find(beat => 
-                Math.abs(gameTime % 8000 - beat) < 20 && // 8000ms = pattern length
-                !tiles.some(tile => Math.abs(tile.timestamp % 8000 - beat) < 20)
+                Math.abs((gameTime % 12000) - (beat % 12000)) < 20 && // 12000ms = pattern length
+                !tiles.some(tile => Math.abs(tile.timestamp - beat) < 20)
             );
 
             if (currentBeat !== undefined) {
-                tiles = [...tiles, createTile(gameTime)];
+                tiles = [...tiles, createTile(currentBeat)];
             }
         }
 
-        // Check for missed tiles
-        const bottomLine = window.innerHeight - 200;
+        // Check for missed tiles with more forgiving bottom line
+        const bottomLine = window.innerHeight - 150; // Less strict bottom line
         const failedTile = tiles.find(tile => !tile.clicked && tile.y > bottomLine);
 
         if (failedTile) {
@@ -109,28 +111,50 @@
         }
 
         // Remove tiles that are off screen
-        tiles = tiles.filter(tile => tile.y < window.innerHeight);
+        tiles = tiles.filter(tile => tile.y < window.innerHeight + 150);
 
         if (!gameOver) {
             animationFrame = requestAnimationFrame(animate);
         }
     }
 
-    function handleTileClick(tile: Tile): void {
+    function handleTileClick(tile: Tile, event: MouseEvent): void {
         if (!gameStarted || gameOver || tile.clicked) return;
         
-        const lowestUnclickedTile = tiles
-            .filter(t => !t.clicked)
-            .sort((a, b) => b.y - a.y)[0];
+        event.preventDefault();
+        event.stopPropagation();
         
-        if (tile === lowestUnclickedTile) {
-            tile.clicked = true;
+        // Get visible unclicked tiles in the same column with more forgiving bounds
+        const columnTiles = tiles.filter(t => 
+            !t.clicked && 
+            t.column === tile.column && 
+            t.y >= -200 && // More forgiving top bound
+            t.y <= window.innerHeight - 50 // More forgiving bottom bound
+        );
+
+        // If no tiles in column, ignore click
+        if (columnTiles.length === 0) return;
+        
+        // Sort tiles by Y position and get the lowest one
+        const sortedTiles = columnTiles.sort((a, b) => b.y - a.y);
+        const lowestTile = sortedTiles[0];
+        
+        // Add a tolerance range for clicking (30px up or down)
+        const clickTolerance = 30;
+        const isWithinRange = Math.abs(tile.y - lowestTile.y) <= clickTolerance;
+        
+        if (tile === lowestTile || (tile.column === lowestTile.column && isWithinRange)) {
+            lowestTile.clicked = true; // Always click the lowest tile if within range
             score++;
-            // Increase speed gradually
-            if (score % 10 === 0) {
-                speed += 0.5;
+            if (score % 15 === 0) {
+                speed += 0.3;
             }
-        } else {
+            if (score >= targetScore) {
+                stageCompleted = true;
+                endGame();
+            }
+        } else if (columnTiles.includes(tile) && !isWithinRange) {
+            // Only end game if we clicked a wrong tile and it's not within range
             endGame();
         }
     }
@@ -195,15 +219,25 @@
                 <button class="start-button" onclick={startGame}>START!</button>
             {/if}
             {#if gameOver}
-                <div class="game-over">
-                    <p>Game Over! Score: {score}</p>
-                    <button class="restart-button" onclick={startGame}>Play Again</button>
+                <div class="game-over" class:completed={stageCompleted}>
+                    <p>
+                        {#if stageCompleted}
+                            Stage Complete!
+                        {:else}
+                            Game Over!
+                        {/if}
+                        Score: {score}
+                    </p>
+                    <button class="restart-button" onclick={startGame}>
+                        {stageCompleted ? 'Play Again' : 'Try Again'}
+                    </button>
                 </div>
             {/if}
             <div 
                 class="tiles-container"
                 role="presentation"
-                onclick={() => {
+                onclick={(e) => {
+                    e.preventDefault();
                     if (gameStarted && !gameOver) endGame();
                 }}
             >
@@ -213,8 +247,9 @@
                         class="tile {tile.clicked ? 'clicked' : ''}"
                         style="left: {tile.column * 25}%; top: {tile.y}px;"
                         onclick={(e) => {
+                            e.preventDefault();
                             e.stopPropagation();
-                            handleTileClick(tile);
+                            handleTileClick(tile, e);
                         }}
                         disabled={tile.clicked}
                         aria-label="Piano tile column {tile.column + 1}"
@@ -281,21 +316,41 @@
         width: 100%;
         height: 100%;
         position: relative;
+        touch-action: none;
+        padding: 8px 0;
+        user-select: none; /* Prevent text selection */
     }
 
     .tile {
         position: absolute;
         width: 25%;
-        height: 150px;
+        height: 140px;
         background: #000;
         border: none;
         cursor: pointer;
         transition: background-color 0.2s;
+        padding: 0;
+        margin: 0;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        margin-bottom: 15px;
+        touch-action: manipulation; /* Optimize for touch */
+        -webkit-tap-highlight-color: transparent; /* Remove tap highlight on mobile */
+    }
+
+    .tile:active {
+        background: #333; /* Visual feedback when pressing */
     }
 
     .tile.clicked {
         background: #2ecc71;
         cursor: default;
+    }
+
+    /* Add hover effect only on devices that support hover */
+    @media (hover: hover) {
+        .tile:hover:not(.clicked) {
+            background: #333;
+        }
     }
 
     .start-button {
@@ -321,9 +376,8 @@
         z-index: 10;
     }
 
-    .game-over p {
-        font-size: 24px;
-        margin: 0 0 20px 0;
+    .game-over.completed {
+        background: rgba(46, 204, 113, 0.9); /* Green background for completion */
     }
 
     .controls {

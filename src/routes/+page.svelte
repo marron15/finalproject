@@ -4,7 +4,7 @@
 
 <main>
   <h1>Welcome to Piano Tiles</h1>
-  <button on:click={() => goto('/pianotiles')}>Play Game</button>
+  <button on:click={() => goto('/mainmenu')}>Play Game</button>
 </main>
 
 <style>
