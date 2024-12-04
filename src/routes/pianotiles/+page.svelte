@@ -14,6 +14,7 @@
         y: number;
         clicked: boolean;
         timestamp: number;
+        id: number;
     }
 
     let selectedStage: Stage | null = null;
@@ -27,8 +28,7 @@
     let lastTimestamp = 0;
     let audio: HTMLAudioElement;
     let startTime = 0;
-    let targetScore = 50; // Score needed to win the stage
-    let stageCompleted = false;
+    let lastClickTime = 0;
 
     // Define rhythm patterns (in milliseconds)
     const rhythmPatterns: Record<number, number[]> = {
@@ -46,7 +46,8 @@
             column,
             y: -150,
             clicked: false,
-            timestamp
+            timestamp,
+            id: Date.now() + Math.random()
         };
     }
 
@@ -79,14 +80,17 @@
     }
 
     function animate(timestamp = 0): void {
+        if (gameOver) return;
+        
         const deltaTime = timestamp - lastTimestamp;
         const gameTime = timestamp - startTime;
         lastTimestamp = timestamp;
 
-        // Move existing tiles down
-        tiles.forEach(tile => {
-            tile.y += speed * deltaTime / 16;
-        });
+        // Move existing tiles down with smoother motion
+        tiles = tiles.map(tile => ({
+            ...tile,
+            y: tile.y + Math.min(speed * deltaTime / 16, 20) // Cap maximum movement
+        }));
 
         // Generate new tiles based on rhythm pattern
         if (selectedStage?.id && rhythmPatterns[selectedStage.id]) {
@@ -97,21 +101,28 @@
             );
 
             if (currentBeat !== undefined) {
-                tiles = [...tiles, createTile(currentBeat)];
+                const newTile = createTile(currentBeat);
+                tiles = [...tiles, newTile];
             }
         }
 
-        // Check for missed tiles with more forgiving bottom line
-        const bottomLine = window.innerHeight - 150; // Less strict bottom line
-        const failedTile = tiles.find(tile => !tile.clicked && tile.y > bottomLine);
+        // Only check for missed tiles that are WAY past the bottom
+        const bottomLine = window.innerHeight + 100;
+        const failedTiles = tiles.filter(tile => 
+            !tile.clicked && 
+            tile.y > bottomLine + 200 // Super forgiving bottom line
+        );
 
-        if (failedTile) {
+        if (failedTiles.length > 0) {
             endGame();
             return;
         }
 
-        // Remove tiles that are off screen
-        tiles = tiles.filter(tile => tile.y < window.innerHeight + 150);
+        // Clean up tiles that are way off screen
+        tiles = tiles.filter(tile => 
+            tile.y < window.innerHeight + 400 || // Keep unclicked tiles longer
+            (tile.clicked && tile.y < window.innerHeight + 500) // Keep clicked tiles even longer
+        );
 
         if (!gameOver) {
             animationFrame = requestAnimationFrame(animate);
@@ -119,42 +130,52 @@
     }
 
     function handleTileClick(tile: Tile, event: MouseEvent): void {
-        if (!gameStarted || gameOver || tile.clicked) return;
+        if (!gameStarted || gameOver) return;
         
         event.preventDefault();
         event.stopPropagation();
+
+        const target = event.target as HTMLElement;
+        const gameContainer = target.closest('.game-container');
+        if (!gameContainer) return;
         
-        // Get visible unclicked tiles in the same column with more forgiving bounds
+        const containerRect = gameContainer.getBoundingClientRect();
+        const clickY = event.clientY - containerRect.top;
+        
+        // Get tiles in the clicked column
         const columnTiles = tiles.filter(t => 
             !t.clicked && 
-            t.column === tile.column && 
-            t.y >= -200 && // More forgiving top bound
-            t.y <= window.innerHeight - 50 // More forgiving bottom bound
+            t.column === tile.column &&
+            Math.abs(t.y - clickY) <= 200
         );
 
-        // If no tiles in column, ignore click
         if (columnTiles.length === 0) return;
         
-        // Sort tiles by Y position and get the lowest one
-        const sortedTiles = columnTiles.sort((a, b) => b.y - a.y);
-        const lowestTile = sortedTiles[0];
-        
-        // Add a tolerance range for clicking (30px up or down)
-        const clickTolerance = 30;
-        const isWithinRange = Math.abs(tile.y - lowestTile.y) <= clickTolerance;
-        
-        if (tile === lowestTile || (tile.column === lowestTile.column && isWithinRange)) {
-            lowestTile.clicked = true; // Always click the lowest tile if within range
+        // Find the closest tile to the click position
+        const closestTile = columnTiles.reduce((closest, current) => {
+            const closestDist = Math.abs(closest.y - clickY);
+            const currentDist = Math.abs(current.y - clickY);
+            return currentDist < closestDist ? current : closest;
+        });
+
+        const clickTolerance = 150;
+        if (Math.abs(closestTile.y - clickY) <= clickTolerance) {
+            tiles = tiles.map(t => {
+                if (t === closestTile) {
+                    return { ...t, clicked: true };
+                }
+                return t;
+            });
+            
             score++;
+            // Increase speed every 15 points
             if (score % 15 === 0) {
                 speed += 0.3;
             }
-            if (score >= targetScore) {
-                stageCompleted = true;
-                endGame();
-            }
-        } else if (columnTiles.includes(tile) && !isWithinRange) {
-            // Only end game if we clicked a wrong tile and it's not within range
+            return;
+        }
+        
+        if (clickY < closestTile.y - clickTolerance * 2) {
             endGame();
         }
     }
@@ -219,17 +240,13 @@
                 <button class="start-button" onclick={startGame}>START!</button>
             {/if}
             {#if gameOver}
-                <div class="game-over" class:completed={stageCompleted}>
-                    <p>
-                        {#if stageCompleted}
-                            Stage Complete!
-                        {:else}
-                            Game Over!
-                        {/if}
-                        Score: {score}
-                    </p>
+                <div class="game-over">
+                    <p>Game Over! Score: {score}</p>
                     <button class="restart-button" onclick={startGame}>
-                        {stageCompleted ? 'Play Again' : 'Try Again'}
+                        Try Again
+                    </button>
+                    <button class="back-button" onclick={() => goto('/mainmenu')}>
+                        Back to Menu
                     </button>
                 </div>
             {/if}
@@ -237,29 +254,50 @@
                 class="tiles-container"
                 role="presentation"
                 onclick={(e) => {
-                    e.preventDefault();
-                    if (gameStarted && !gameOver) endGame();
+                    if (!gameStarted || gameOver) return;
+                    
+                    // Get click coordinates relative to container
+                    const container = e.currentTarget as HTMLElement;
+                    const rect = container.getBoundingClientRect();
+                    const clickX = e.clientX - rect.left;
+                    const clickY = e.clientY - rect.top;
+
+                    // Find if we clicked on any unclicked black tile
+                    const clickedOnTile = tiles.some(tile => {
+                        if (tile.clicked) return false;
+                        
+                        const tileLeft = tile.column * (rect.width / 4);
+                        const tileRight = tileLeft + (rect.width / 4);
+                        const tileTop = tile.y;
+                        const tileBottom = tile.y + 140;
+
+                        return clickX >= tileLeft && 
+                               clickX <= tileRight && 
+                               clickY >= tileTop && 
+                               clickY <= tileBottom;
+                    });
+
+                    // If clicked outside any valid tile, end game
+                    if (!clickedOnTile) {
+                        endGame();
+                    }
                 }}
             >
                 {#each tiles as tile}
                     <button
                         type="button"
                         class="tile {tile.clicked ? 'clicked' : ''}"
-                        style="left: {tile.column * 25}%; top: {tile.y}px;"
-                        onclick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
+                        style="left: {tile.column * 25}%; top: {tile.y}px; height: 140px;"
+                        onmousedown={(e) => {
+                            e.stopPropagation(); // Prevent container click when clicking tile
                             handleTileClick(tile, e);
                         }}
+                        onclick={(e) => e.preventDefault()}
                         disabled={tile.clicked}
                         aria-label="Piano tile column {tile.column + 1}"
                     ></button>
                 {/each}
             </div>
-        </div>
-
-        <div class="controls">
-            <button class="back-button" onclick={() => goto('/mainmenu')}>Back to Menu</button>
         </div>
     {/if}
 </main>
@@ -324,21 +362,20 @@
     .tile {
         position: absolute;
         width: 25%;
-        height: 140px;
         background: #000;
         border: none;
         cursor: pointer;
-        transition: background-color 0.2s;
         padding: 0;
         margin: 0;
         border: 1px solid rgba(255, 255, 255, 0.1);
-        margin-bottom: 15px;
-        touch-action: manipulation; /* Optimize for touch */
-        -webkit-tap-highlight-color: transparent; /* Remove tap highlight on mobile */
+        touch-action: none;
+        -webkit-tap-highlight-color: transparent;
+        user-select: none;
+        z-index: 1;
     }
 
     .tile:active {
-        background: #333; /* Visual feedback when pressing */
+        background: #333;
     }
 
     .tile.clicked {
@@ -346,10 +383,10 @@
         cursor: default;
     }
 
-    /* Add hover effect only on devices that support hover */
+    /* Improve hover feedback */
     @media (hover: hover) {
-        .tile:hover:not(.clicked) {
-            background: #333;
+        .tile:hover:not(.clicked):not(:active) {
+            background: #222;
         }
     }
 
@@ -374,24 +411,18 @@
         border-radius: 10px;
         text-align: center;
         z-index: 10;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
     }
 
-    .game-over.completed {
-        background: rgba(46, 204, 113, 0.9); /* Green background for completion */
+    .restart-button {
+        background: #2ecc71;
     }
 
-    .controls {
-        margin-top: 20px;
-    }
-
-    button {
-        padding: 15px 30px;
-        font-size: 18px;
-        color: white;
-        border: none;
-        border-radius: 5px;
-        cursor: pointer;
-        transition: transform 0.2s, background-color 0.2s;
+    .restart-button:hover {
+        transform: scale(1.05);
+        background: #27ae60;
     }
 
     .back-button {
@@ -403,13 +434,14 @@
         background: #c0392b;
     }
 
-    .restart-button {
-        background: #2ecc71;
-    }
-
-    .restart-button:hover {
-        transform: scale(1.05);
-        background: #27ae60;
+    button {
+        padding: 15px 30px;
+        font-size: 18px;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        transition: transform 0.2s, background-color 0.2s;
     }
 </style>
   
