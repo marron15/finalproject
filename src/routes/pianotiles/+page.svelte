@@ -121,7 +121,8 @@
       {/if}
       <div 
         class="tiles-container"
-        on:click|self={() => {
+        role="presentation"
+        on:mousedown|self={() => {
           if (gameStarted && !gameOver) endGame();
         }}
       >
@@ -133,6 +134,7 @@
             on:click|stopPropagation={() => handleTileClick(tile)}
             on:keydown={(e) => e.key === 'Enter' && handleTileClick(tile)}
             aria-label="Piano tile {tile.column + 1}"
+            disabled={tile.clicked}
           ></button>
         {/each}
       </div>
