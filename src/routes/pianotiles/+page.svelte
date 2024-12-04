@@ -86,7 +86,7 @@
         const gameTime = timestamp - startTime;
         lastTimestamp = timestamp;
 
-        // Move existing tiles down with smoother motion
+        // Move existing tiles down
         tiles = tiles.map(tile => ({
             ...tile,
             y: tile.y + Math.min(speed * deltaTime / 16, 20) // Cap maximum movement
@@ -106,22 +106,22 @@
             }
         }
 
-        // Only check for missed tiles that are WAY past the bottom
-        const bottomLine = window.innerHeight + 100;
-        const failedTiles = tiles.filter(tile => 
+        // Check for missed tiles at the bottom
+        const bottomLine = window.innerHeight - 140; // Height of one tile
+        const failedTile = tiles.find(tile => 
             !tile.clicked && 
-            tile.y > bottomLine + 200 // Super forgiving bottom line
+            tile.y > bottomLine
         );
 
-        if (failedTiles.length > 0) {
+        if (failedTile) {
             endGame();
             return;
         }
 
         // Clean up tiles that are way off screen
         tiles = tiles.filter(tile => 
-            tile.y < window.innerHeight + 400 || // Keep unclicked tiles longer
-            (tile.clicked && tile.y < window.innerHeight + 500) // Keep clicked tiles even longer
+            tile.y < window.innerHeight + 200 || // Keep unclicked tiles
+            (tile.clicked && tile.y < window.innerHeight + 300) // Keep clicked tiles longer
         );
 
         if (!gameOver) {
@@ -146,7 +146,7 @@
         const columnTiles = tiles.filter(t => 
             !t.clicked && 
             t.column === tile.column &&
-            Math.abs(t.y - clickY) <= 200
+            Math.abs(t.y - clickY) <= 250
         );
 
         if (columnTiles.length === 0) return;
@@ -158,7 +158,7 @@
             return currentDist < closestDist ? current : closest;
         });
 
-        const clickTolerance = 150;
+        const clickTolerance = 200;
         if (Math.abs(closestTile.y - clickY) <= clickTolerance) {
             tiles = tiles.map(t => {
                 if (t === closestTile) {
@@ -173,10 +173,6 @@
                 speed += 0.3;
             }
             return;
-        }
-        
-        if (clickY < closestTile.y - clickTolerance * 2) {
-            endGame();
         }
     }
 
@@ -262,25 +258,8 @@
                     const clickX = e.clientX - rect.left;
                     const clickY = e.clientY - rect.top;
 
-                    // Find if we clicked on any unclicked black tile
-                    const clickedOnTile = tiles.some(tile => {
-                        if (tile.clicked) return false;
-                        
-                        const tileLeft = tile.column * (rect.width / 4);
-                        const tileRight = tileLeft + (rect.width / 4);
-                        const tileTop = tile.y;
-                        const tileBottom = tile.y + 140;
-
-                        return clickX >= tileLeft && 
-                               clickX <= tileRight && 
-                               clickY >= tileTop && 
-                               clickY <= tileBottom;
-                    });
-
-                    // If clicked outside any valid tile, end game
-                    if (!clickedOnTile) {
-                        endGame();
-                    }
+                    // We no longer end the game when clicking outside tiles
+                    // Just ignore clicks that aren't on valid tiles
                 }}
             >
                 {#each tiles as tile}
