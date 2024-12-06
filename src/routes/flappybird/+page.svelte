@@ -13,12 +13,12 @@
         velocity: 0,
         gravity: 0.12,
         jumpForce: -3.2,
-        size: 22,
+        size: 25,
         maxVelocity: 3.5,
         rotation: 0,
         wingOffset: 0,
         wingSpeed: 0.15,
-        hitboxSize: 18,
+        hitboxSize: 15,
         airResistance: 0.99
     };
     
