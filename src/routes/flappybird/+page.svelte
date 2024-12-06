@@ -11,13 +11,13 @@
         x: 50,
         y: 150,
         velocity: 0,
-        gravity: 0.12,
-        jumpForce: -3.2,
+        gravity: 0.15,
+        jumpForce: -4.0,
         size: 25,
-        maxVelocity: 3.5,
+        maxVelocity: 4.5,
         rotation: 0,
         wingOffset: 0,
-        wingSpeed: 0.15,
+        wingSpeed: 0.2,
         hitboxSize: 15,
         airResistance: 0.99
     };
@@ -37,12 +37,20 @@
     let resumeCountdown = 0;
     let mainMenuBtnHovered = false;
     
-    const PIPE_SPEED = 1.5;
+    const PIPE_SPEED = 2.5;
     const PIPE_WIDTH = 50;
     const PIPE_GAP = 180;
     const JUMP_COOLDOWN = 150;
     const COLLISION_BUFFER = 5;
     const MIN_VELOCITY = 0.5;
+    
+    let clouds: Array<{x: number, y: number, width: number, speed: number}> = [];
+    let buildings: Array<{x: number, width: number, height: number}> = [];
+    let isNightMode = true;
+    
+    // Add new state variables for stars and building windows
+    let stars: Array<{x: number, y: number, size: number}> = [];
+    let buildingWindows: Array<Array<{x: number, y: number, isLit: boolean}>> = [];
     
     function adjustForMobile() {
         isMobile = window.innerWidth < 768;
@@ -662,11 +670,180 @@
         );
     }
     
+    function initializeBackground() {
+        // Initialize clouds
+        clouds = [];
+        for (let i = 0; i < 5; i++) {
+            clouds.push({
+                x: Math.random() * canvas.width,
+                y: Math.random() * (canvas.height * 0.4),
+                width: Math.random() * 80 + 60,
+                speed: Math.random() * 0.2 + 0.1
+            });
+        }
+
+        // Initialize buildings
+        buildings = [];
+        let x = 0;
+        while (x < canvas.width) {
+            const width = Math.random() * 60 + 40;
+            const height = Math.random() * (canvas.height * 0.3) + (canvas.height * 0.1);
+            buildings.push({ x, width, height });
+            x += width + 5;
+        }
+
+        // Initialize stars
+        stars = [];
+        for (let i = 0; i < 100; i++) {
+            stars.push({
+                x: Math.random() * canvas.width,
+                y: Math.random() * (canvas.height * 0.6),
+                size: Math.random() * 1.5 + 0.5
+            });
+        }
+
+        // Initialize building windows
+        buildingWindows = [];
+        for (let building of buildings) {
+            const windowsForBuilding: Array<{x: number, y: number, isLit: boolean}> = [];
+            for (let y = canvas.height - building.height + 10; y < canvas.height - 10; y += 15) {
+                for (let x = building.x + 5; x < building.x + building.width - 5; x += 10) {
+                    windowsForBuilding.push({
+                        x, 
+                        y,
+                        isLit: Math.random() > 0.4 // 60% chance of being lit
+                    });
+                }
+            }
+            buildingWindows.push(windowsForBuilding);
+        }
+    }
+    
+    function drawBackground() {
+        if (!ctx) return;
+
+        // Draw sky gradient - night mode colors
+        const skyGradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+        if (isNightMode) {
+            skyGradient.addColorStop(0, '#0a1621'); // Dark blue night sky
+            skyGradient.addColorStop(0.7, '#1a2c3d'); // Lighter near horizon
+            skyGradient.addColorStop(1, '#2c3e50'); // Even lighter at horizon
+        } else {
+            skyGradient.addColorStop(0, '#87CEEB');
+            skyGradient.addColorStop(1, '#ADD8E6');
+        }
+        ctx.fillStyle = skyGradient;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Draw stars in night mode
+        if (isNightMode) {
+            ctx.fillStyle = '#fff';
+            for (let star of stars) {
+                ctx.beginPath();
+                ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        // Draw clouds with adjusted opacity for night mode
+        ctx.fillStyle = isNightMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.8)';
+        for (let cloud of clouds) {
+            // Move clouds
+            cloud.x -= cloud.speed;
+            if (cloud.x + cloud.width < 0) {
+                cloud.x = canvas.width;
+                cloud.y = Math.random() * (canvas.height * 0.4);
+            }
+
+            // Draw cloud shape
+            ctx.beginPath();
+            ctx.arc(cloud.x, cloud.y, cloud.width * 0.3, 0, Math.PI * 2);
+            ctx.arc(cloud.x + cloud.width * 0.3, cloud.y - 10, cloud.width * 0.25, 0, Math.PI * 2);
+            ctx.arc(cloud.x + cloud.width * 0.5, cloud.y, cloud.width * 0.3, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // Draw moon in night mode
+        if (isNightMode) {
+            ctx.save();
+            ctx.fillStyle = '#fff5d6';
+            ctx.beginPath();
+            ctx.arc(canvas.width - 80, 80, 30, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Moon shadow
+            ctx.fillStyle = '#0a1621';
+            ctx.beginPath();
+            ctx.arc(canvas.width - 70, 75, 28, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+
+        // Draw city skyline
+        for (let i = 0; i < buildings.length; i++) {
+            const building = buildings[i];
+            
+            // Create gradient for each building
+            const buildingGradient = ctx.createLinearGradient(
+                building.x, 
+                canvas.height - building.height, 
+                building.x, 
+                canvas.height
+            );
+
+            if (isNightMode) {
+                // Night mode building colors - varying shades for depth
+                if (i % 3 === 0) {
+                    buildingGradient.addColorStop(0, '#1a2634');
+                    buildingGradient.addColorStop(1, '#0f1c2a');
+                } else if (i % 3 === 1) {
+                    buildingGradient.addColorStop(0, '#233343');
+                    buildingGradient.addColorStop(1, '#182736');
+                } else {
+                    buildingGradient.addColorStop(0, '#2c3e50');
+                    buildingGradient.addColorStop(1, '#233343');
+                }
+            } else {
+                // Day mode building colors
+                if (i % 3 === 0) {
+                    buildingGradient.addColorStop(0, '#2c3e50');
+                    buildingGradient.addColorStop(1, '#34495e');
+                } else if (i % 3 === 1) {
+                    buildingGradient.addColorStop(0, '#34495e');
+                    buildingGradient.addColorStop(1, '#2c3e50');
+                } else {
+                    buildingGradient.addColorStop(0, '#395670');
+                    buildingGradient.addColorStop(1, '#2c3e50');
+                }
+            }
+
+            // Draw building
+            ctx.fillStyle = buildingGradient;
+            ctx.fillRect(building.x, canvas.height - building.height, building.width, building.height);
+
+            // Draw windows using pre-calculated positions
+            if (buildingWindows[i]) {
+                const windowColor = isNightMode ? 'rgba(255, 247, 130, 0.8)' : 'rgba(255, 255, 255, 0.2)';
+                const dimWindowColor = isNightMode ? 'rgba(255, 247, 130, 0.1)' : 'rgba(255, 255, 255, 0.1)';
+                
+                if (isNightMode) {
+                    ctx.shadowColor = 'rgba(255, 247, 130, 0.5)';
+                    ctx.shadowBlur = 5;
+                }
+
+                for (let window of buildingWindows[i]) {
+                    ctx.fillStyle = window.isLit ? windowColor : dimWindowColor;
+                    ctx.fillRect(window.x, window.y, 5, 10);
+                }
+                ctx.shadowBlur = 0;
+            }
+        }
+    }
+    
     function gameLoop() {
         if (!ctx || gameOver) return;
         if (isCountingDown || isResumingCountdown) return;
         
-        // If paused, only draw the pause overlay and return
         if (isPaused) {
             drawPauseOverlay();
             return;
@@ -674,9 +851,7 @@
         
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         
-        // Fill background
-        ctx.fillStyle = '#87CEEB';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        drawBackground();
         
         updateBirdPhysics();
         drawBird();
@@ -687,9 +862,15 @@
             
             // Create gradient for pipes
             const pipeGradient = ctx.createLinearGradient(pipe.x, 0, pipe.x + PIPE_WIDTH, 0);
-            pipeGradient.addColorStop(0, '#2ecc71');  // Base green
-            pipeGradient.addColorStop(0.5, '#27ae60'); // Darker green for depth
-            pipeGradient.addColorStop(1, '#2ecc71');   // Back to base green
+            if (isNightMode) {
+                pipeGradient.addColorStop(0, '#1a472a');  // Darker green for night
+                pipeGradient.addColorStop(0.5, '#143d23'); // Even darker for depth
+                pipeGradient.addColorStop(1, '#1a472a');   // Back to dark green
+            } else {
+                pipeGradient.addColorStop(0, '#2ecc71');  // Original green
+                pipeGradient.addColorStop(0.5, '#27ae60'); // Original darker green
+                pipeGradient.addColorStop(1, '#2ecc71');   // Back to original
+            }
             
             // Draw top pipe with enhanced styling
             ctx.save();
@@ -752,10 +933,16 @@
         }
         
         // Draw score in the top right corner
-        ctx.fillStyle = '#000';
-        ctx.font = 'bold 28px Poppins';
-        ctx.textAlign = 'right';
-        ctx.fillText(`Score: ${score}`, canvas.width - 20, 37);
+        if (!gameOver) {
+            // Draw score in the top right corner with better visibility
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+            ctx.shadowBlur = 5;
+            ctx.fillStyle = '#fff';  // Changed from '#000' to white
+            ctx.font = 'bold 32px Arial';  // Slightly larger font
+            ctx.textAlign = 'right';
+            ctx.fillText(`Score: ${score}`, canvas.width - 20, 40);
+            ctx.shadowBlur = 0;
+        }
         
         // Draw pause button
         drawPauseButton();
@@ -853,6 +1040,7 @@
             pipes = [];
             score = 0;
             isPaused = false;
+            initializeBackground();
             startTimer();
             startCountdown();
         }
@@ -881,6 +1069,7 @@
     onMount(() => {
         ctx = canvas.getContext('2d')!;
         adjustForMobile();
+        initializeBackground();
         startCountdown();
         
         window.addEventListener('keydown', handleKeydown);
