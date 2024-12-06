@@ -221,9 +221,51 @@
         // Draw game elements
         drawBird();
         for (let pipe of pipes) {
-            ctx.fillStyle = '#2ecc71';
+            // Create gradient for pipes
+            const pipeGradient = ctx.createLinearGradient(pipe.x, 0, pipe.x + PIPE_WIDTH, 0);
+            pipeGradient.addColorStop(0, '#2ecc71');  // Base green
+            pipeGradient.addColorStop(0.5, '#27ae60'); // Darker green for depth
+            pipeGradient.addColorStop(1, '#2ecc71');   // Back to base green
+            
+            // Draw top pipe with enhanced styling
+            ctx.save();
+            // Pipe shadow
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
+            ctx.shadowBlur = 5;
+            ctx.shadowOffsetX = 2;
+            
+            // Main pipe body
+            ctx.fillStyle = pipeGradient;
             ctx.fillRect(pipe.x, 0, PIPE_WIDTH, pipe.gap - PIPE_GAP/2);
+            
+            // Pipe border
+            ctx.strokeStyle = '#27ae60';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(pipe.x, 0, PIPE_WIDTH, pipe.gap - PIPE_GAP/2);
+            
+            // Pipe cap for top pipe
+            const capHeight = 20;
+            const capWidth = PIPE_WIDTH + 20;
+            const capGradient = ctx.createLinearGradient(pipe.x - 10, 0, pipe.x + capWidth, 0);
+            capGradient.addColorStop(0, '#27ae60');
+            capGradient.addColorStop(0.5, '#2ecc71');
+            capGradient.addColorStop(1, '#27ae60');
+            
+            ctx.fillStyle = capGradient;
+            ctx.fillRect(pipe.x - 10, pipe.gap - PIPE_GAP/2 - capHeight, capWidth, capHeight);
+            ctx.strokeRect(pipe.x - 10, pipe.gap - PIPE_GAP/2 - capHeight, capWidth, capHeight);
+            
+            // Bottom pipe with same styling
+            ctx.fillStyle = pipeGradient;
             ctx.fillRect(pipe.x, pipe.gap + PIPE_GAP/2, PIPE_WIDTH, canvas.height);
+            ctx.strokeRect(pipe.x, pipe.gap + PIPE_GAP/2, PIPE_WIDTH, canvas.height);
+            
+            // Pipe cap for bottom pipe
+            ctx.fillStyle = capGradient;
+            ctx.fillRect(pipe.x - 10, pipe.gap + PIPE_GAP/2, capWidth, capHeight);
+            ctx.strokeRect(pipe.x - 10, pipe.gap + PIPE_GAP/2, capWidth, capHeight);
+            
+            ctx.restore();
         }
         
         // Draw semi-transparent overlay
@@ -317,9 +359,51 @@
             // Draw game elements in background
             drawBird();
             for (let pipe of pipes) {
-                ctx.fillStyle = '#2ecc71';
+                // Create gradient for pipes
+                const pipeGradient = ctx.createLinearGradient(pipe.x, 0, pipe.x + PIPE_WIDTH, 0);
+                pipeGradient.addColorStop(0, '#2ecc71');  // Base green
+                pipeGradient.addColorStop(0.5, '#27ae60'); // Darker green for depth
+                pipeGradient.addColorStop(1, '#2ecc71');   // Back to base green
+                
+                // Draw top pipe with enhanced styling
+                ctx.save();
+                // Pipe shadow
+                ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
+                ctx.shadowBlur = 5;
+                ctx.shadowOffsetX = 2;
+                
+                // Main pipe body
+                ctx.fillStyle = pipeGradient;
                 ctx.fillRect(pipe.x, 0, PIPE_WIDTH, pipe.gap - PIPE_GAP/2);
+                
+                // Pipe border
+                ctx.strokeStyle = '#27ae60';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(pipe.x, 0, PIPE_WIDTH, pipe.gap - PIPE_GAP/2);
+                
+                // Pipe cap for top pipe
+                const capHeight = 20;
+                const capWidth = PIPE_WIDTH + 20;
+                const capGradient = ctx.createLinearGradient(pipe.x - 10, 0, pipe.x + capWidth, 0);
+                capGradient.addColorStop(0, '#27ae60');
+                capGradient.addColorStop(0.5, '#2ecc71');
+                capGradient.addColorStop(1, '#27ae60');
+                
+                ctx.fillStyle = capGradient;
+                ctx.fillRect(pipe.x - 10, pipe.gap - PIPE_GAP/2 - capHeight, capWidth, capHeight);
+                ctx.strokeRect(pipe.x - 10, pipe.gap - PIPE_GAP/2 - capHeight, capWidth, capHeight);
+                
+                // Bottom pipe with same styling
+                ctx.fillStyle = pipeGradient;
                 ctx.fillRect(pipe.x, pipe.gap + PIPE_GAP/2, PIPE_WIDTH, canvas.height);
+                ctx.strokeRect(pipe.x, pipe.gap + PIPE_GAP/2, PIPE_WIDTH, canvas.height);
+                
+                // Pipe cap for bottom pipe
+                ctx.fillStyle = capGradient;
+                ctx.fillRect(pipe.x - 10, pipe.gap + PIPE_GAP/2, capWidth, capHeight);
+                ctx.strokeRect(pipe.x - 10, pipe.gap + PIPE_GAP/2, capWidth, capHeight);
+                
+                ctx.restore();
             }
             
             // Draw semi-transparent overlay
@@ -601,9 +685,51 @@
             const pipe = pipes[i];
             pipe.x -= PIPE_SPEED;
             
-            ctx.fillStyle = '#2ecc71';
+            // Create gradient for pipes
+            const pipeGradient = ctx.createLinearGradient(pipe.x, 0, pipe.x + PIPE_WIDTH, 0);
+            pipeGradient.addColorStop(0, '#2ecc71');  // Base green
+            pipeGradient.addColorStop(0.5, '#27ae60'); // Darker green for depth
+            pipeGradient.addColorStop(1, '#2ecc71');   // Back to base green
+            
+            // Draw top pipe with enhanced styling
+            ctx.save();
+            // Pipe shadow
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
+            ctx.shadowBlur = 5;
+            ctx.shadowOffsetX = 2;
+            
+            // Main pipe body
+            ctx.fillStyle = pipeGradient;
             ctx.fillRect(pipe.x, 0, PIPE_WIDTH, pipe.gap - PIPE_GAP/2);
+            
+            // Pipe border
+            ctx.strokeStyle = '#27ae60';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(pipe.x, 0, PIPE_WIDTH, pipe.gap - PIPE_GAP/2);
+            
+            // Pipe cap for top pipe
+            const capHeight = 20;
+            const capWidth = PIPE_WIDTH + 20;
+            const capGradient = ctx.createLinearGradient(pipe.x - 10, 0, pipe.x + capWidth, 0);
+            capGradient.addColorStop(0, '#27ae60');
+            capGradient.addColorStop(0.5, '#2ecc71');
+            capGradient.addColorStop(1, '#27ae60');
+            
+            ctx.fillStyle = capGradient;
+            ctx.fillRect(pipe.x - 10, pipe.gap - PIPE_GAP/2 - capHeight, capWidth, capHeight);
+            ctx.strokeRect(pipe.x - 10, pipe.gap - PIPE_GAP/2 - capHeight, capWidth, capHeight);
+            
+            // Bottom pipe with same styling
+            ctx.fillStyle = pipeGradient;
             ctx.fillRect(pipe.x, pipe.gap + PIPE_GAP/2, PIPE_WIDTH, canvas.height);
+            ctx.strokeRect(pipe.x, pipe.gap + PIPE_GAP/2, PIPE_WIDTH, canvas.height);
+            
+            // Pipe cap for bottom pipe
+            ctx.fillStyle = capGradient;
+            ctx.fillRect(pipe.x - 10, pipe.gap + PIPE_GAP/2, capWidth, capHeight);
+            ctx.strokeRect(pipe.x - 10, pipe.gap + PIPE_GAP/2, capWidth, capHeight);
+            
+            ctx.restore();
             
             if (checkCollision(pipe)) {
                 gameOver = true;
