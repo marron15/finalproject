@@ -1236,23 +1236,31 @@
 </div>
 
 <style>
+    :global(body) {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+    }
+
     .game-container {
         display: flex;
         flex-direction: column;
         align-items: center;
-        background: linear-gradient(to bottom, #09203f, #537895); /* Sky to white gradient */
-        height: 100vh;
-        width: 100vw;
-        overflow: hidden;
-    }
-    
-    canvas {
-        border: 2px solid #333;
-        border-radius: 8px;
-        background-color: #87CEEB;
-        cursor: pointer;
+        justify-content: center;
+        background: linear-gradient(to bottom, #09203f, #537895);
+        min-height: 100vh;
+        width: 100%;
         max-width: 100%;
-        touch-action: none;
+        position: relative;
+        margin: 0 auto;
+        padding: 0;
+    }
+
+    canvas {
+        display: block;
+        margin: 0 auto;
+        max-width: 100%;
+        height: auto;
     }
 
     @media (max-width: 768px) {
