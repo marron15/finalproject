@@ -25,6 +25,8 @@
     let pipes: Array<{x: number, gap: number}> = [];
     let gameOver = false;
     let score = 0;
+    let highScore = 0;
+    let showShareMenu = false;
     let animationFrame: number;
     let lastJumpTime = 0;
     let countdown = 3;
@@ -32,7 +34,7 @@
     let previousCountdown = 0;
     let isPaused = false;
     let gameTimer = 0;
-    let gameTimerInterval: number;
+    let gameTimerInterval: number | null = null; // Initialize with null
     let isResumingCountdown = false;
     let resumeCountdown = 0;
     let mainMenuBtnHovered = false;
@@ -189,7 +191,7 @@
         
         // Chest/belly highlight - thinner
         const chestGradient = ctx.createRadialGradient(-2, 2, 0, -2, 2, bird.size * 0.6);
-        chestGradient.addColorStop(0, '#fff9c4');
+        chestGradient.addColorStop(0, '#fff9c4');  // Lighter center
         chestGradient.addColorStop(1, '#ffd54f');
         ctx.fillStyle = chestGradient;
         ctx.beginPath();
@@ -225,6 +227,7 @@
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.fillStyle = '#87CEEB';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
+
         
         // Draw game elements
         drawBird();
@@ -307,49 +310,71 @@
         }
     }
     
-    async function startCountdown() {
+    function startCountdown() {
         isCountingDown = true;
-        countdown = 3;
-        previousCountdown = 0;
+        let countdown = 3;
         
-        // Initialize game state but don't start physics
-        bird.y = 150;
-        bird.velocity = 0;
-        pipes = [];
-        score = 0;
-        
-        // Create initial pipes
-        createPipe();
-        
-        while (countdown > 0) {
-            drawCountdown();
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            countdown--;
-        }
-        
-        isCountingDown = false;
-        gameLoop();
-    }
-    
-    function formatTime(seconds: number): string {
-        const minutes = Math.floor(seconds / 60);
-        const remainingSeconds = seconds % 60;
-        return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
-    }
-    
-    function startTimer() {
-        gameTimer = 0;
-        gameTimerInterval = window.setInterval(() => {
-            if (!isPaused && !gameOver && !isCountingDown) {
-                gameTimer++;
+        function drawCountdownFrame() {
+            if (!ctx) return;
+            
+            // Clear and draw the current game state
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw background with night mode
+            drawBackground();
+            
+            // Draw existing pipes
+            for (const pipe of pipes) {
+                // Create gradient for pipes
+                const pipeGradient = ctx.createLinearGradient(pipe.x, 0, pipe.x + PIPE_WIDTH, 0);
+                pipeGradient.addColorStop(0, '#1a472a');  // Darker green for night
+                pipeGradient.addColorStop(0.5, '#143d23'); // Even darker for depth
+                pipeGradient.addColorStop(1, '#1a472a');   // Back to dark green
+                
+                ctx.fillStyle = pipeGradient;
+                // Draw pipes
+                ctx.fillRect(pipe.x, 0, PIPE_WIDTH, pipe.gap - PIPE_GAP/2); // Top pipe
+                ctx.fillRect(pipe.x, pipe.gap + PIPE_GAP/2, PIPE_WIDTH, canvas.height - (pipe.gap + PIPE_GAP/2)); // Bottom pipe
             }
-        }, 1000);
-    }
-    
-    function stopTimer() {
-        if (gameTimerInterval) {
-            clearInterval(gameTimerInterval);
+            
+            // Draw bird
+            drawBird();
+            
+            // Draw countdown number with shadow
+            ctx.save();
+            ctx.font = 'bold 72px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            
+            // Add shadow
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+            ctx.shadowBlur = 10;
+            ctx.shadowOffsetX = 4;
+            ctx.shadowOffsetY = 4;
+            
+            // Draw text
+            ctx.fillStyle = 'white';
+            ctx.fillText(countdown.toString(), canvas.width / 2, canvas.height / 2);
+            
+            // Draw instruction text
+            ctx.font = 'bold 24px Arial';
+            ctx.fillText('Click or press Space to jump', canvas.width / 2, canvas.height / 2 + 50);
+            
+            ctx.restore();
         }
+
+        function updateCountdown() {
+            if (countdown > 0) {
+                drawCountdownFrame();
+                countdown--;
+                setTimeout(updateCountdown, 1000);
+            } else {
+                isCountingDown = false;
+                gameLoop();
+            }
+        }
+
+        updateCountdown();
     }
     
     async function startResumeCountdown() {
@@ -461,13 +486,17 @@
     function togglePause() {
         if (!gameOver && !isCountingDown && !isResumingCountdown) {
             if (isPaused) {
-                startResumeCountdown();
+                // Resume the game
+                isPaused = false;
+                startCountdown(); // Start countdown before resuming
             } else {
+                // Pause the game
                 isPaused = true;
+                stopTimer();
                 if (animationFrame) {
                     cancelAnimationFrame(animationFrame);
                 }
-                drawPauseOverlay();
+                drawPauseOverlay(); // Show the pause overlay
             }
         }
     }
@@ -595,12 +624,133 @@
     
     function goToMainMenu() {
         // Clean up game resources
-        stopTimer();
+        if (gameTimerInterval) {
+            clearInterval(gameTimerInterval);
+            gameTimerInterval = null;
+        }
         if (animationFrame) {
             cancelAnimationFrame(animationFrame);
         }
-        // Navigate to main menu
-        goto('/');
+        // Navigate to main menu using relative path
+        goto('../');
+    }
+    
+    async function handleShare(platform: string) {
+        const scoreImage = generateScoreImage();
+        const text = `I scored ${score} points in Flappy Bird! Can you beat my score?`;
+        const url = window.location.href;
+        
+        // Try to use the Web Share API first if available and on mobile
+        if (platform === 'native' && navigator.share && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+            try {
+                const response = await fetch(scoreImage);
+                const blob = await response.blob();
+                const file = new File([blob], 'flappy-score.png', { type: 'image/png' });
+                
+                await navigator.share({
+                    title: 'My Flappy Bird Score',
+                    text: text,
+                    url: url,
+                    files: [file]
+                });
+                showShareMenu = false;
+                return;
+            } catch (err) {
+                console.error('Error sharing:', err);
+            }
+        }
+
+        // Handle Facebook sharing
+        if (platform === 'facebook') {
+            // First, trigger the download
+            const link = document.createElement('a');
+            link.download = 'flappy-score.png';
+            link.href = scoreImage;
+            link.click();
+            
+            // Then open Facebook's create post page directly
+            window.open('https://www.facebook.com', '_blank', 
+                'width=800,height=600,left=' + 
+                ((window.innerWidth - 800) / 2) + ',top=' + 
+                ((window.innerHeight - 600) / 2));
+            
+            showShareMenu = false;
+            return;
+        }
+
+        // Handle other platforms
+        let shareUrl = '';
+        switch(platform) {
+            case 'twitter':
+                shareUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;
+                break;
+            case 'download':
+                const link = document.createElement('a');
+                link.download = 'flappy-score.png';
+                link.href = scoreImage;
+                link.click();
+                showShareMenu = false;
+                return;
+        }
+        
+        if (shareUrl) {
+            window.open(shareUrl, '_blank', 'width=600,height=400');
+        }
+        showShareMenu = false;
+    }
+    
+    function generateScoreImage() {
+        // Create a new canvas for the score image
+        const scoreCanvas = document.createElement('canvas');
+        const scoreCtx = scoreCanvas.getContext('2d');
+        
+        // Set canvas size
+        scoreCanvas.width = 600;
+        scoreCanvas.height = 400;
+        
+        if (!scoreCtx) return '';
+
+        // Draw background
+        const gradient = scoreCtx.createLinearGradient(0, 0, 0, scoreCanvas.height);
+        gradient.addColorStop(0, '#1a1621'); // Dark blue night sky
+        gradient.addColorStop(0.7, '#1a2c3d'); // Lighter near horizon
+        gradient.addColorStop(1, '#2c3e50'); // Even lighter at horizon
+        scoreCtx.fillStyle = gradient;
+        scoreCtx.fillRect(0, 0, scoreCanvas.width, scoreCanvas.height);
+
+        // Draw stars
+        for (let i = 0; i < 50; i++) {
+            scoreCtx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+            scoreCtx.beginPath();
+            const x = Math.random() * scoreCanvas.width;
+            const y = Math.random() * scoreCanvas.height;
+            scoreCtx.arc(x, y, 1, 0, Math.PI * 2);
+            scoreCtx.fill();
+        }
+
+        // Draw game title
+        scoreCtx.font = 'bold 48px Arial';
+        scoreCtx.fillStyle = '#ffffff';
+        scoreCtx.textAlign = 'center';
+        scoreCtx.fillText('Flappy Bird', scoreCanvas.width / 2, 100);
+
+        // Draw score
+        scoreCtx.font = 'bold 72px Arial';
+        scoreCtx.fillStyle = '#4ade80';
+        scoreCtx.fillText(score.toString(), scoreCanvas.width / 2, 200);
+
+        // Draw "SCORE" text
+        scoreCtx.font = '32px Arial';
+        scoreCtx.fillStyle = '#ffffff';
+        scoreCtx.fillText('SCORE', scoreCanvas.width / 2, 250);
+
+        // Draw date
+        const date = new Date().toLocaleDateString();
+        scoreCtx.font = '24px Arial';
+        scoreCtx.fillStyle = '#9ca3af';
+        scoreCtx.fillText(date, scoreCanvas.width / 2, 350);
+
+        return scoreCanvas.toDataURL('image/png');
     }
     
     function handleClick(event: MouseEvent) {
@@ -845,7 +995,8 @@
         if (isCountingDown || isResumingCountdown) return;
         
         if (isPaused) {
-            drawPauseOverlay();
+            drawPauseOverlay(); // Show pause overlay
+            // Do not call requestAnimationFrame here to avoid freezing
             return;
         }
         
@@ -949,84 +1100,15 @@
         
         if (gameOver) {
             stopTimer();
-            // Gradient overlay
+            // Game Over overlay background
             const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
             gradient.addColorStop(0, 'rgba(0, 0, 0, 0.7)');
-            gradient.addColorStop(0.5, 'rgba(0, 0, 0, 0.6)');
-            gradient.addColorStop(1, 'rgba(0, 0, 0, 0.7)');
+            gradient.addColorStop(1, 'rgba(0, 0, 0, 0.9)');
             ctx.fillStyle = gradient;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             
-            // Game Over text with shadow and glow
-            ctx.shadowColor = '#e74c3c';
-            ctx.shadowBlur = 20;
-            ctx.fillStyle = '#ff6b6b';
-            ctx.font = 'bold 72px Arial';
-            ctx.textAlign = 'center';
-            ctx.fillText('Game Over!', canvas.width/2, canvas.height/2 - 40);
-            
-            // Reset shadow
-            ctx.shadowBlur = 0;
-            
-            // Click to restart text with glow animation
-            const glowIntensity = (Math.sin(Date.now() * 0.003) + 1) / 2;
-            ctx.fillStyle = `rgba(255, 255, 255, ${0.7 + glowIntensity * 0.3})`;
-            ctx.font = 'bold 28px Arial';
-            ctx.fillText('Click to restart', canvas.width/2, canvas.height/2 + 40);
-            
-            // Main Menu button with enhanced styling
-            const menuBtnY = canvas.height/2 + 120;
-            
-            // Button outer glow
-            if (mainMenuBtnHovered) {
-                ctx.shadowColor = '#e74c3c';
-                ctx.shadowBlur = 15;
-            }
-            
-            // Button shadow
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
-            ctx.beginPath();
-            ctx.roundRect(canvas.width/2 - 78, menuBtnY - 18, 156, 46, 10);
-            ctx.fill();
-            
-            // Button gradient
-            const btnGradient = ctx.createLinearGradient(0, menuBtnY - 20, 0, menuBtnY + 20);
-            if (mainMenuBtnHovered) {
-                btnGradient.addColorStop(0, '#ff6b6b');
-                btnGradient.addColorStop(0.5, '#e74c3c');
-                btnGradient.addColorStop(1, '#c0392b');
-            } else {
-                btnGradient.addColorStop(0, '#e74c3c');
-                btnGradient.addColorStop(0.5, '#d63031');
-                btnGradient.addColorStop(1, '#c0392b');
-            }
-            
-            // Button background with rounded corners
-            ctx.fillStyle = btnGradient;
-            ctx.beginPath();
-            ctx.roundRect(canvas.width/2 - 80, menuBtnY - 20, 160, 40, 10);
-            ctx.fill();
-            
-            // Button border
-            ctx.strokeStyle = mainMenuBtnHovered ? '#fff' : 'rgba(255, 255, 255, 0.5)';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.roundRect(canvas.width/2 - 80, menuBtnY - 20, 160, 40, 10);
-            ctx.stroke();
-            
-            // Button text with enhanced shadow
-            ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
-            ctx.shadowBlur = mainMenuBtnHovered ? 8 : 4;
-            ctx.shadowOffsetY = 2;
-            ctx.fillStyle = '#fff';
-            ctx.font = 'bold 22px Arial';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText('Main Menu', canvas.width/2, menuBtnY);
-            
-            // Reset shadow effects
-            ctx.shadowBlur = 0;
-            ctx.shadowOffsetY = 0;
+            // Reset any existing canvas transformations
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
         } else {
             animationFrame = requestAnimationFrame(gameLoop);
         }
@@ -1066,6 +1148,22 @@
         }
     }
     
+    function stopTimer() {
+        if (gameTimerInterval) {
+            clearInterval(gameTimerInterval);
+            gameTimerInterval = null; // Reset the interval ID
+        }
+    }
+    
+    function startTimer() {
+        gameTimer = 0; // Reset the timer
+        gameTimerInterval = window.setInterval(() => {
+            if (!isPaused && !gameOver && !isCountingDown) {
+                gameTimer++;
+            }
+        }, 1000);
+    }
+    
     onMount(() => {
         ctx = canvas.getContext('2d')!;
         adjustForMobile();
@@ -1093,6 +1191,7 @@
 <svelte:head>
     <title>Flappy Bird</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
 </svelte:head>
 
 <div class="game-container">
@@ -1102,6 +1201,38 @@
         on:mousemove={handleMouseMove}
         tabindex="0"
     />
+    {#if gameOver}
+        <div class="game-over-overlay">
+            <h1>Game Over!</h1>
+            <p>Score: {score}</p>
+            <div class="buttons-container">
+                <button class="main-menu-btn" on:click={() => goToMainMenu()}>Main Menu</button>
+                <button class="share-btn" on:click={() => showShareMenu = true}>
+                    <img src="/share-icon.svg" alt="Share" />
+                </button>
+            </div>
+            {#if showShareMenu}
+                <div class="share-menu">
+                    <div class="score-preview">
+                        <img src={generateScoreImage()} alt="Score preview" />
+                    </div>
+                    <button class="social-btn native" on:click={() => handleShare('native')}>
+                        Share to Social Media
+                    </button>
+                    <button class="social-btn facebook" on:click={() => handleShare('facebook')}>
+                        Share on Facebook
+                    </button>
+                    <button class="social-btn twitter" on:click={() => handleShare('twitter')}>
+                        Share on Twitter
+                    </button>
+                    <button class="social-btn download" on:click={() => handleShare('download')}>
+                        Download Image
+                    </button>
+                    <button class="close-btn" on:click={() => showShareMenu = false}>Close</button>
+                </div>
+            {/if}
+        </div>
+    {/if}
 </div>
 
 <style>
@@ -1128,5 +1259,144 @@
         .game-container {
             padding: 10px;
         }
+    }
+    
+    .game-over-overlay {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+        align-items: center;
+        z-index: 10;
+    }
+
+    .game-over-overlay h1 {
+        font-size: 48px;
+        color: #ff4757;
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        margin: 0;
+    }
+
+    .game-over-overlay p {
+        font-size: 24px;
+        color: white;
+        text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+        margin: 0;
+    }
+
+    .buttons-container {
+        display: flex;
+        gap: 15px;
+        align-items: center;
+        margin-top: 20px;
+    }
+
+    .main-menu-btn {
+        background: #e74c3c;
+        color: white;
+        border: none;
+        padding: 12px 24px;
+        border-radius: 8px;
+        font-size: 18px;
+        cursor: pointer;
+        transition: background 0.3s, transform 0.2s;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    .main-menu-btn:hover {
+        background: #c0392b;
+        transform: translateY(-2px);
+    }
+
+    .share-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #4CAF50;
+        border: none;
+        width: 50px;
+        height: 50px;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    .share-btn:hover {
+        background: #388E3C;
+        transform: translateY(-2px);
+    }
+
+    .share-btn img {
+        width: 24px;
+        height: 24px;
+    }
+
+    .share-menu {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: rgba(0, 0, 0, 0.95);
+        padding: 20px;
+        border-radius: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        z-index: 1000;
+        max-width: 90%;
+        width: 400px;
+    }
+
+    .score-preview {
+        width: 100%;
+        margin-bottom: 15px;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    .score-preview img {
+        width: 100%;
+        height: auto;
+        display: block;
+    }
+
+    .social-btn {
+        padding: 12px 20px;
+        border: none;
+        border-radius: 5px;
+        color: white;
+        cursor: pointer;
+        font-size: 16px;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+    }
+
+    .native {
+        background: #2563eb;
+    }
+
+    .facebook {
+        background: #1877F2;
+    }
+
+    .twitter {
+        background: #1DA1F2;
+    }
+
+    .download {
+        background: #059669;
+    }
+    
+    .social-btn:hover, .close-btn:hover {
+        opacity: 0.9;
+        transform: translateY(-2px);
     }
 </style>
