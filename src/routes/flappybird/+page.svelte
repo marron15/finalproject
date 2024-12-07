@@ -39,8 +39,25 @@
     let resumeCountdown = 0;
     let mainMenuBtnHovered = false;
     
-    const PC_SPEED = 2.5; // Speed for PC
-    const MOBILE_SPEED = 1.5; // Speed for mobile
+    const PC_SPEED = 3.0;
+    let baseMobileSpeed = 1.5;
+    let speedIncrement = 0.15; // Increased for more noticeable changes
+    let currentMobileSpeed = baseMobileSpeed;
+    const MAX_SPEED = 4.0;
+    
+    // Speed milestone thresholds
+    const SPEED_MILESTONES = [
+        { score: 0, multiplier: 2.0 },
+        { score: 5, multiplier: 2.5 },
+        { score: 10, multiplier: 3.0 },
+        { score: 15, multiplier: 3.5 },
+        { score: 20, multiplier: 4.0 }, 
+        { score: 25, multiplier: 4.5 },
+        { score: 30, multiplier: 5.0 },
+        { score: 35, multiplier: 5.5 },
+        { score: 40, multiplier: 6.0 },
+    ];
+    
     const PIPE_WIDTH = 50;
     const PIPE_GAP = 180;
     const JUMP_COOLDOWN = 150;
@@ -341,7 +358,7 @@
                 ctx.fillStyle = pipeGradient;
                 // Draw pipes
                 ctx.fillRect(pipe.x, 0, PIPE_WIDTH, pipe.gap - PIPE_GAP/2); // Top pipe
-                ctx.fillRect(pipe.x, pipe.gap + PIPE_GAP/2, PIPE_WIDTH, canvas.height - (pipe.gap + PIPE_GAP/2)); // Bottom pipe
+                ctx.fillRect(pipe.x, pipe.gap + PIPE_GAP/2, PIPE_WIDTH, canvas.height); // Bottom pipe
             }
             
             // Draw bird
@@ -511,15 +528,19 @@
     function drawPauseButton() {
         if (!ctx) return;
         
+        // Make the button larger on mobile
+        const buttonSize = isMobile ? 60 : 40;
+        const padding = 10;
+        
         // Draw button background with gradient
-        const gradient = ctx.createLinearGradient(10, 10, 10, 50);
+        const gradient = ctx.createLinearGradient(padding, padding, padding, buttonSize + padding);
         gradient.addColorStop(0, 'rgba(0, 0, 0, 0.7)');
         gradient.addColorStop(1, 'rgba(0, 0, 0, 0.8)');
         
         // Draw rounded rectangle for button
         ctx.fillStyle = gradient;
         ctx.beginPath();
-        ctx.roundRect(10, 10, 40, 40, 8);
+        ctx.roundRect(padding, padding, buttonSize, buttonSize, 8);
         ctx.fill();
         
         // Draw pause/play icon with shadow
@@ -527,18 +548,19 @@
         ctx.shadowBlur = 5;
         ctx.fillStyle = '#fff';
         
+        const iconScale = isMobile ? 1.5 : 1;
         if (isPaused) {
             // Draw play triangle
             ctx.beginPath();
-            ctx.moveTo(22, 20);
-            ctx.lineTo(22, 40);
-            ctx.lineTo(42, 30);
+            ctx.moveTo(22 * iconScale, 20 * iconScale);
+            ctx.lineTo(22 * iconScale, 40 * iconScale);
+            ctx.lineTo(42 * iconScale, 30 * iconScale);
             ctx.closePath();
             ctx.fill();
         } else {
             // Draw pause bars
-            ctx.fillRect(22, 20, 6, 20);
-            ctx.fillRect(32, 20, 6, 20);
+            ctx.fillRect(22 * iconScale, 20 * iconScale, 6 * iconScale, 20 * iconScale);
+            ctx.fillRect(32 * iconScale, 20 * iconScale, 6 * iconScale, 20 * iconScale);
         }
         ctx.shadowBlur = 0;
     }
@@ -763,9 +785,9 @@
     function handleClick(event: MouseEvent | TouchEvent) {
         if (!ctx) return;
         
-        // Get coordinates whether it's a mouse or touch event
         let x: number, y: number;
         if (event instanceof TouchEvent) {
+            event.preventDefault(); // Prevent default touch behavior
             const touch = event.touches[0] || event.changedTouches[0];
             const rect = canvas.getBoundingClientRect();
             x = touch.clientX - rect.left;
@@ -776,8 +798,39 @@
             y = event.clientY - rect.top;
         }
 
-        // Prevent default behavior to avoid any unwanted effects
-        event.preventDefault();
+        // Make pause button area larger for mobile
+        const buttonSize = isMobile ? 60 : 40;
+        const padding = 10;
+        
+        // Check if click/touch is within pause button area
+        if (x >= padding && x <= padding + buttonSize && 
+            y >= padding && y <= padding + buttonSize) {
+            togglePause();
+            return;
+        }
+
+        // Handle pause overlay buttons
+        if (isPaused) {
+            const resumeBtnY = canvas.height/2;
+            // Check if click is within Resume button area (make touch area larger on mobile)
+            const resumeBtnSize = isMobile ? 80 : 60;
+            if (x >= canvas.width/2 - resumeBtnSize/2 && x <= canvas.width/2 + resumeBtnSize/2 &&
+                y >= resumeBtnY - resumeBtnSize/2 && y <= resumeBtnY + resumeBtnSize/2) {
+                togglePause(); // Resume the game
+                return;
+            }
+
+            // Check if click is within Return to Main Menu button area (make touch area larger on mobile)
+            const menuBtnY = resumeBtnY + 100;
+            const menuBtnWidth = isMobile ? 280 : 230;
+            const menuBtnHeight = isMobile ? 60 : 50;
+            if (x >= canvas.width/2 - menuBtnWidth/2 && x <= canvas.width/2 + menuBtnWidth/2 &&
+                y >= menuBtnY - menuBtnHeight/2 && y <= menuBtnY + menuBtnHeight/2) {
+                goToMainMenu();
+                return;
+            }
+            return; // If paused, don't process any other clicks
+        }
         
         // Handle the click/touch based on game state
         if (gameOver) {
@@ -1000,7 +1053,20 @@
         updateBirdPhysics();
         drawBird();
         
-        const currentSpeed = isMobile ? MOBILE_SPEED : PC_SPEED;
+        // Update speed based on score with milestone-based scaling
+        let targetSpeed;
+        if (isMobile) {
+            // Find applicable milestone
+            const milestone = SPEED_MILESTONES.find(m => score >= m.score) || { multiplier: 1 };
+            targetSpeed = (baseMobileSpeed + (score * speedIncrement * 0.1)) * milestone.multiplier;
+            currentMobileSpeed = Math.min(targetSpeed, MAX_SPEED);
+        }
+
+        // Use current speed in game logic with milestone-based scaling for PC too
+        const milestone = SPEED_MILESTONES.find(m => score >= m.score) || { multiplier: 1 };
+        const currentSpeed = isMobile 
+            ? currentMobileSpeed 
+            : Math.min((PC_SPEED + (score * speedIncrement * 0.1)) * milestone.multiplier, MAX_SPEED);
         
         for (let i = pipes.length - 1; i >= 0; i--) {
             const pipe = pipes[i];
@@ -1123,9 +1189,9 @@
         }
     }
     
-    function handleKeydown(e: KeyboardEvent) {
-        if (e.code === 'Space') {
-            e.preventDefault();
+    function handleKeydown(event: KeyboardEvent) {
+        if (event.code === 'Space') {
+            event.preventDefault();
             if (gameOver) {
                 startGame();
             } else if (!isResumingCountdown) {
@@ -1135,8 +1201,8 @@
                     jump();
                 }
             }
-        } else if (e.code === 'Escape') {
-            e.preventDefault();
+        } else if (event.code === 'Escape') {
+            event.preventDefault();
             if (!gameOver && !isResumingCountdown) {
                 togglePause();
             }
@@ -1193,6 +1259,7 @@
     <canvas
         bind:this={canvas}
         on:click={handleClick}
+        on:touchstart={handleClick}
         on:mousemove={handleMouseMove}
         tabindex="0"
     />
@@ -1225,218 +1292,217 @@
             {/if}
         </div>
     {/if}
-</div>
-
-<style>
-    :global(body) {
-        margin: 0;
-        padding: 0;
-        overflow: hidden;
-    }
-
-    .game-container {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        background: linear-gradient(to bottom, #09203f, #537895);
-        min-height: 100vh;
-        width: 100%;
-        max-width: 100%;
-        position: relative;
-        margin: 0;
-        padding: 0;
-        overflow: hidden;
-    }
-
-    canvas {
-        width: 100%;
-        display: block;
-        margin: 0 auto;
-        touch-action: none;
-        -webkit-touch-callout: none;
-        -webkit-user-select: none;
-        user-select: none;
-        -webkit-tap-highlight-color: transparent;
-    }
-
-    /* Mobile-specific styles */
-    @media (max-width: 768px) {
-        .game-container {
+    <style>
+        :global(body) {
+            margin: 0;
             padding: 0;
-            height: 100vh;
+            overflow: hidden;
+        }
+
+        .game-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(to bottom, #09203f, #537895);
+            min-height: 100vh;
+            width: 100%;
+            max-width: 100%;
+            position: relative;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        canvas {
+            width: 100%;
+            display: block;
+            margin: 0 auto;
+            touch-action: none;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* Mobile-specific styles */
+        @media (max-width: 768px) {
+            .game-container {
+                padding: 0;
+                height: 100vh;
+            }
+            
+            canvas {
+                width: 100vw;
+                height: 90vh;
+                max-width: none;
+                max-height: none;
+                margin: 0;
+                border-radius: 0;
+            }
+        }
+
+        /* Desktop-specific styles */
+        @media (min-width: 769px) {
+            canvas {
+                aspect-ratio: 16/9;
+                min-width: 800px;
+                width: 60%;
+                max-width: 1980px;
+                height: auto;
+            }
         }
         
-        canvas {
-            width: 100vw;
-            height: 90vh;
-            max-width: none;
-            max-height: none;
+        .game-over-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            align-items: center;
+            z-index: 10;
+        }
+
+        .game-over-overlay h1 {
+            font-size: 48px;
+            color: #ff4757;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
             margin: 0;
-            border-radius: 0;
         }
-    }
 
-    /* Desktop-specific styles */
-    @media (min-width: 769px) {
-        canvas {
-            aspect-ratio: 16/9;
-            min-width: 800px;
-            width: 60%;
-            max-width: 1980px;
+        .game-over-overlay p {
+            font-size: 24px;
+            color: white;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+            margin: 0;
+        }
+
+        .buttons-container {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            margin-top: 20px;
+        }
+
+        .main-menu-btn {
+            background: #e74c3c;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 18px;
+            cursor: pointer;
+            transition: background 0.3s, transform 0.2s;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            position: relative;
+            z-index: 1000;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+
+        .main-menu-btn:hover {
+            background: #c0392b;
+            transform: translateY(-2px);
+        }
+
+        .share-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #4CAF50;
+            border: none;
+            width: 50px;
+            height: 50px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            position: relative;
+            z-index: 1000;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+
+        .share-btn:hover {
+            background: #388E3C;
+            transform: translateY(-2px);
+        }
+
+        .share-btn img {
+            width: 24px;
+            height: 24px;
+        }
+
+        .share-menu {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.95);
+            padding: 20px;
+            border-radius: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            z-index: 1000;
+            max-width: 90%;
+            width: 400px;
+            touch-action: manipulation;
+        }
+
+        .score-preview {
+            width: 100%;
+            margin-bottom: 15px;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .score-preview img {
+            width: 100%;
             height: auto;
+            display: block;
         }
-    }
-    
-    .game-over-overlay {
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        text-align: center;
-        display: flex;
-        flex-direction: column;
-        gap: 20px;
-        align-items: center;
-        z-index: 10;
-    }
 
-    .game-over-overlay h1 {
-        font-size: 48px;
-        color: #ff4757;
-        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
-        margin: 0;
-    }
-
-    .game-over-overlay p {
-        font-size: 24px;
-        color: white;
-        text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
-        margin: 0;
-    }
-
-    .buttons-container {
-        display: flex;
-        gap: 15px;
-        align-items: center;
-        margin-top: 20px;
-    }
-
-    .main-menu-btn {
-        background: #e74c3c;
-        color: white;
-        border: none;
-        padding: 12px 24px;
-        border-radius: 8px;
-        font-size: 18px;
-        cursor: pointer;
-        transition: background 0.3s, transform 0.2s;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        position: relative;
-        z-index: 1000;
-        touch-action: manipulation;
-        -webkit-tap-highlight-color: transparent;
-        user-select: none;
-    }
-
-    .main-menu-btn:hover {
-        background: #c0392b;
-        transform: translateY(-2px);
-    }
-
-    .share-btn {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background: #4CAF50;
-        border: none;
-        width: 50px;
-        height: 50px;
-        border-radius: 8px;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        position: relative;
-        z-index: 1000;
-        touch-action: manipulation;
-        -webkit-tap-highlight-color: transparent;
-        user-select: none;
-    }
-
-    .share-btn:hover {
-        background: #388E3C;
-        transform: translateY(-2px);
-    }
-
-    .share-btn img {
-        width: 24px;
-        height: 24px;
-    }
-
-    .share-menu {
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        background: rgba(0, 0, 0, 0.95);
-        padding: 20px;
-        border-radius: 10px;
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-        z-index: 1000;
-        max-width: 90%;
-        width: 400px;
-        touch-action: manipulation;
-    }
-
-    .score-preview {
-        width: 100%;
-        margin-bottom: 15px;
-        border-radius: 8px;
-        overflow: hidden;
-    }
-
-    .score-preview img {
-        width: 100%;
-        height: auto;
-        display: block;
-    }
-
-    .social-btn {
-        padding: 12px 20px;
-        border: none;
-        border-radius: 5px;
-        color: white;
-        cursor: pointer;
-        font-size: 16px;
-        transition: all 0.2s ease;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 10px;
-        position: relative;
-        z-index: 1000;
-        touch-action: manipulation;
-        -webkit-tap-highlight-color: transparent;
-        user-select: none;
-    }
+        .social-btn {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 5px;
+            color: white;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            position: relative;
+            z-index: 1000;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
 
 
-    .facebook {
-        background: #1877F2;
-    }
+        .facebook {
+            background: #1877F2;
+        }
 
-    .twitter {
-        background: #1DA1F2;
-    }
+        .twitter {
+            background: #1DA1F2;
+        }
 
-    .download {
-        background: #059669;
-    }
-    
-    .social-btn:hover, .close-btn:hover {
-        opacity: 0.9;
-        transform: translateY(-2px);
-    }
-</style>
+        .download {
+            background: #059669;
+        }
+        
+        .social-btn:hover, .close-btn:hover {
+            opacity: 0.9;
+            transform: translateY(-2px);
+        }
+    </style>
+</div>
