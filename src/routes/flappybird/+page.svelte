@@ -4,7 +4,7 @@
     
     let canvas: HTMLCanvasElement;
     let ctx: CanvasRenderingContext2D;
-    let isMobile = false;
+    let isMobile = /Mobi|Android/i.test(navigator.userAgent); // Device detection
     let canvasWidth = 800;
     let canvasHeight = 600;
     let bird = {
@@ -39,7 +39,8 @@
     let resumeCountdown = 0;
     let mainMenuBtnHovered = false;
     
-    const PIPE_SPEED = 2.5;
+    const PC_SPEED = 2.5; // Speed for PC
+    const MOBILE_SPEED = 1.5; // Speed for mobile
     const PIPE_WIDTH = 50;
     const PIPE_GAP = 180;
     const JUMP_COOLDOWN = 150;
@@ -55,9 +56,15 @@
     let buildingWindows: Array<Array<{x: number, y: number, isLit: boolean}>> = [];
     
     function adjustForMobile() {
-        isMobile = window.innerWidth < 768;
-        canvasWidth = isMobile ? window.innerWidth - 40 : 800;
-        canvasHeight = isMobile ? window.innerHeight - 200 : 600;
+        if (isMobile) {
+            // Mobile settings (portrait)
+            canvasWidth = Math.min(window.innerWidth - 20, 400); // Narrower width for mobile
+            canvasHeight = Math.min(window.innerHeight - 100, 600); // Taller height for mobile
+        } else {
+            // PC settings (landscape)
+            canvasWidth = Math.min(window.innerWidth - 20, 1000);
+            canvasHeight = Math.min(window.innerHeight - 200, 800);
+        }
         
         if (canvas) {
             canvas.width = canvasWidth;
@@ -753,54 +760,40 @@
         return scoreCanvas.toDataURL('image/png');
     }
     
-    function handleClick(event: MouseEvent) {
-        const rect = canvas.getBoundingClientRect();
-        const x = event.clientX - rect.left;
-        const y = event.clientY - rect.top;
+    function handleClick(event: MouseEvent | TouchEvent) {
+        if (!ctx) return;
+        
+        // Get coordinates whether it's a mouse or touch event
+        let x: number, y: number;
+        if (event instanceof TouchEvent) {
+            const touch = event.touches[0] || event.changedTouches[0];
+            const rect = canvas.getBoundingClientRect();
+            x = touch.clientX - rect.left;
+            y = touch.clientY - rect.top;
+        } else {
+            const rect = canvas.getBoundingClientRect();
+            x = event.clientX - rect.left;
+            y = event.clientY - rect.top;
+        }
 
+        // Prevent default behavior to avoid any unwanted effects
+        event.preventDefault();
+        
+        // Handle the click/touch based on game state
         if (gameOver) {
-            // Main menu button hitbox
-            const menuBtnY = canvas.height/2 + 120;
-            if (x >= canvas.width/2 - 80 && x <= canvas.width/2 + 80 &&
-                y >= menuBtnY - 20 && y <= menuBtnY + 20) {
-                goToMainMenu();
-                return;
-            }
-            
-            // Restart game hitbox
-            if (y < menuBtnY - 30) {
+            // Check if click/touch is within restart button area
+            if (x >= canvas.width/2 - 60 && x <= canvas.width/2 + 60 &&
+                y >= canvas.height/2 + 50 && y <= canvas.height/2 + 90) {
                 startGame();
             }
-        } else if (isPaused) {
-            const resumeBtnY = canvas.height/2;
-            // Resume button hitbox (icon)
-            if (x >= canvas.width/2 - 30 && x <= canvas.width/2 + 30 &&
-                y >= resumeBtnY - 30 && y <= resumeBtnY + 30) {
-                togglePause();
-                return;
+        } else if (!isCountingDown && !isResumingCountdown) {
+            if (!isPaused) {
+                const currentTime = Date.now();
+                if (currentTime - lastJumpTime >= JUMP_COOLDOWN) {
+                    bird.velocity = bird.jumpForce;
+                    lastJumpTime = currentTime;
+                }
             }
-            
-            // Return to Main Menu button hitbox
-            const menuBtnY = resumeBtnY + 100;
-            const menuBtnWidth = 220;
-            if (x >= canvas.width/2 - menuBtnWidth/2 && x <= canvas.width/2 + menuBtnWidth/2 &&
-                y >= menuBtnY - 25 && y <= menuBtnY + 25) {
-                goToMainMenu();
-                return;
-            }
-        }
-        
-        // Pause button hitbox
-        if (x >= 10 && x <= 50 && y >= 10 && y <= 50) {
-            if (!isResumingCountdown && !gameOver) {
-                togglePause();
-            }
-            return;
-        }
-        
-        // Jump only if not paused and not in countdown
-        if (!isPaused && !isResumingCountdown && !gameOver) {
-            jump();
         }
     }
     
@@ -1007,9 +1000,11 @@
         updateBirdPhysics();
         drawBird();
         
+        const currentSpeed = isMobile ? MOBILE_SPEED : PC_SPEED;
+        
         for (let i = pipes.length - 1; i >= 0; i--) {
             const pipe = pipes[i];
-            pipe.x -= PIPE_SPEED;
+            pipe.x -= currentSpeed;
             
             // Create gradient for pipes
             const pipeGradient = ctx.createLinearGradient(pipe.x, 0, pipe.x + PIPE_WIDTH, 0);
@@ -1216,9 +1211,6 @@
                     <div class="score-preview">
                         <img src={generateScoreImage()} alt="Score preview" />
                     </div>
-                    <button class="social-btn native" on:click={() => handleShare('native')}>
-                        Share to Social Media
-                    </button>
                     <button class="social-btn facebook" on:click={() => handleShare('facebook')}>
                         Share on Facebook
                     </button>
@@ -1257,15 +1249,31 @@
     }
 
     canvas {
+        width: 100%;
         display: block;
         margin: 0 auto;
-        max-width: 100%;
-        height: auto;
+        touch-action: none;
+        -webkit-touch-callout: none;
+        -webkit-user-select: none;
+        user-select: none;
+        -webkit-tap-highlight-color: transparent;
     }
 
+    /* Mobile-specific styles */
     @media (max-width: 768px) {
-        .game-container {
-            padding: 10px;
+        canvas {
+            aspect-ratio: 2/3; /* Portrait aspect ratio for mobile */
+            max-width: 400px; /* Limit width on mobile */
+            max-height: 600px;
+        }
+    }
+
+    /* Desktop-specific styles */
+    @media (min-width: 769px) {
+        canvas {
+            aspect-ratio: 1280/720; /* Landscape aspect ratio for desktop */
+            max-width: 800px;
+            max-height: 600px;
         }
     }
     
@@ -1313,6 +1321,11 @@
         cursor: pointer;
         transition: background 0.3s, transform 0.2s;
         box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        position: relative;
+        z-index: 1000;
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
+        user-select: none;
     }
 
     .main-menu-btn:hover {
@@ -1332,6 +1345,11 @@
         cursor: pointer;
         transition: all 0.3s ease;
         box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        position: relative;
+        z-index: 1000;
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
+        user-select: none;
     }
 
     .share-btn:hover {
@@ -1358,6 +1376,7 @@
         z-index: 1000;
         max-width: 90%;
         width: 400px;
+        touch-action: manipulation;
     }
 
     .score-preview {
@@ -1385,11 +1404,13 @@
         align-items: center;
         justify-content: center;
         gap: 10px;
+        position: relative;
+        z-index: 1000;
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
+        user-select: none;
     }
 
-    .native {
-        background: #2563eb;
-    }
 
     .facebook {
         background: #1877F2;
