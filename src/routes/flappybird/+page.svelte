@@ -1240,10 +1240,10 @@
         display: flex;
         flex-direction: column;
         align-items: center;
-        padding: 20px;
-        background-color: #f0f0f0;
-        min-height: 100vh;
-        touch-action: manipulation;
+        background: linear-gradient(to bottom, #09203f, #537895); /* Sky to white gradient */
+        height: 100vh;
+        width: 100vw;
+        overflow: hidden;
     }
     
     canvas {
