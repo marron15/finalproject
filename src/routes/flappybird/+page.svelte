@@ -57,13 +57,13 @@
     
     function adjustForMobile() {
         if (isMobile) {
-            // Mobile settings (portrait)
-            canvasWidth = Math.min(window.innerWidth - 20, 400); // Narrower width for mobile
-            canvasHeight = Math.min(window.innerHeight - 100, 600); // Taller height for mobile
+            // Mobile settings (full screen portrait)
+            canvasWidth = window.innerWidth; // Full width
+            canvasHeight = window.innerHeight * 0.9; // 90% of viewport height to account for browser UI
         } else {
-            // PC settings (landscape)
-            canvasWidth = Math.min(window.innerWidth - 20, 1000);
-            canvasHeight = Math.min(window.innerHeight - 200, 800);
+            // PC settings (landscape) - increased size for better visibility
+            canvasWidth = Math.min(window.innerWidth * 0.6, 1980); // 60% of window width
+            canvasHeight = Math.min(window.innerHeight * 0.7, 1080); // 70% of window height
         }
         
         if (canvas) {
@@ -1244,8 +1244,9 @@
         width: 100%;
         max-width: 100%;
         position: relative;
-        margin: 0 auto;
+        margin: 0;
         padding: 0;
+        overflow: hidden;
     }
 
     canvas {
@@ -1261,19 +1262,29 @@
 
     /* Mobile-specific styles */
     @media (max-width: 768px) {
+        .game-container {
+            padding: 0;
+            height: 100vh;
+        }
+        
         canvas {
-            aspect-ratio: 2/3; /* Portrait aspect ratio for mobile */
-            max-width: 400px; /* Limit width on mobile */
-            max-height: 600px;
+            width: 100vw;
+            height: 90vh;
+            max-width: none;
+            max-height: none;
+            margin: 0;
+            border-radius: 0;
         }
     }
 
     /* Desktop-specific styles */
     @media (min-width: 769px) {
         canvas {
-            aspect-ratio: 1280/720; /* Landscape aspect ratio for desktop */
-            max-width: 800px;
-            max-height: 600px;
+            aspect-ratio: 16/9;
+            min-width: 800px;
+            width: 60%;
+            max-width: 1980px;
+            height: auto;
         }
     }
     
