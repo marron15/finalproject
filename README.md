@@ -2,11 +2,6 @@ Para ma Run po:
 
 npm install @sveltejs/adapter-auto --save-dev
 
-then if there is a error on Line 1 on Flappybird/+page.svelte
-
-<script lang="ts">   ---> Just Restart the VS Code then npm run dev again
-
-
 # sv
 
 Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
