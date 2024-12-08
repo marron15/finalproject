@@ -40,10 +40,10 @@
     let mainMenuBtnHovered = false;
     
     const PC_SPEED = 3.0;
-    let baseMobileSpeed = 1.5;
+    let baseMobileSpeed = 1.0;
     let speedIncrement = 0.15; // Increased for more noticeable changes
     let currentMobileSpeed = baseMobileSpeed;
-    const MAX_SPEED = 4.0;
+    const MAX_SPEED = 6.0;
     
     // Speed milestone thresholds
     const SPEED_MILESTONES = [
@@ -1103,7 +1103,7 @@
             // Pipe cap for top pipe
             const capHeight = 20;
             const capWidth = PIPE_WIDTH + 20;
-            const capGradient = ctx.createLinearGradient(pipe.x - 10, 0, pipe.x + capWidth, 0);
+            const capGradient = ctx.createLinearGradient(pipe.x - 15, 0, pipe.x + capWidth, 0);
             capGradient.addColorStop(0, '#27ae60');
             capGradient.addColorStop(0.5, '#2ecc71');
             capGradient.addColorStop(1, '#27ae60');
@@ -1119,7 +1119,7 @@
             
             // Pipe cap for bottom pipe
             ctx.fillStyle = capGradient;
-            ctx.fillRect(pipe.x - 10, pipe.gap + PIPE_GAP/2, capWidth, capHeight);
+            ctx.fillRect(pipe.x - 5, pipe.gap + PIPE_GAP/2, capWidth, capHeight);
             ctx.strokeRect(pipe.x - 10, pipe.gap + PIPE_GAP/2, capWidth, capHeight);
             
             ctx.restore();
