@@ -1,6 +1,6 @@
 Para ma Run po:
 
-npm install @sveltejs/adapter-auto --save-dev
+npm install @sveltejs/adapter-auto --save-dev  , if there is a Red in Line 1 in src/routes/flappybird/+page.svelte , just restart the VS Code then npm run dev
 
 # sv
 
