@@ -1267,6 +1267,7 @@
         <div class="game-over-overlay">
             <h1>Game Over!</h1>
             <p>Score: {score}</p>
+            <p style="color: #4ade80;">SPACE / CLICK TO RESTART</p>
             <div class="buttons-container">
                 <button class="main-menu-btn" on:click={() => goToMainMenu()}>Main Menu</button>
                 <button class="share-btn" on:click={() => showShareMenu = true}>
