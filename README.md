@@ -1,3 +1,9 @@
+Para ma Run po:
+
+npm install @sveltejs/adapter-auto --save-dev
+
+
+
 # sv
 
 Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
